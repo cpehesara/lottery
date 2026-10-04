@@ -1,0 +1,5 @@
+pillow>=10.0
+numpy
+playwright>=1.45
+onnxruntime
+rapidocr>=3.0

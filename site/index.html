@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lottery Results Printer</title>
+<meta name="theme-color" content="#0b5d47">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #e7ece9; --card: #ffffff; --ink: #12241d; --muted: #566a61;
+    --line: #cfd9d4; --brand: #0b5d47; --brand-ink: #ffffff; --mark: #f4c430;
+    --warn-bg: #fff4d6; --warn-ink: #5a4300; --err: #a3261f;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+  header { padding: calc(18px + env(safe-area-inset-top)) 16px 6px; max-width: 880px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 1.45rem; letter-spacing: -0.01em; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: .95rem; }
+  main { max-width: 880px; margin: 0 auto; padding: 8px 12px 0; display: grid; gap: 12px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  h2 { margin: 0 0 10px; font-size: 1rem; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+  .row > * { flex: 1 1 auto; }
+
+  button, .btn, input[type=date], input[type=url] {
+    font: inherit; min-height: 46px; border-radius: 8px; border: 1px solid var(--line);
+    background: #f6f9f7; color: var(--ink); padding: 0 14px;
+  }
+  button, .btn { cursor: pointer; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; text-align: center; }
+  button:active, .btn:active { background: #e3ebe7; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  :focus-visible { outline: 3px solid var(--mark); outline-offset: 2px; }
+  .primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); font-weight: 600; }
+  .primary:active { background: #084a38; }
+  .fb { background: #1b4fa8; color: #fff; border-color: #1b4fa8; font-weight: 600; width: 100%; }
+  .fb:active { background: #153f86; }
+  .step { width: 46px; flex: 0 0 46px; padding: 0; font-size: 1.3rem; }
+  #date { flex: 1 1 140px; min-width: 0; text-align: center; font-weight: 600; }
+  .hint { margin: 8px 0 0; color: var(--muted); font-size: .9rem; }
+  a.hint { display: inline-block; color: #1b4fa8; }
+  .linkbtn { background: none; border: 0; min-height: 0; padding: 0 2px; color: #1b4fa8; text-decoration: underline; font: inherit; }
+  details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+  summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+  #linkRow { display: none; margin-top: 8px; }
+  #linkRow.open { display: flex; }
+  #linkRow input { flex: 1 1 200px; min-width: 0; text-align: left; }
+
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; }
+  .seg span { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 52px; padding: 4px 6px; font-size: .9rem; background: #f6f9f7; border-left: 1px solid var(--line); }
+  .seg label:first-child span { border-left: 0; }
+  .seg input:checked + span { background: var(--brand); color: #fff; font-weight: 600; }
+  .seg input:focus-visible + span { outline: 3px solid var(--mark); outline-offset: -3px; }
+
+  #previewBox { background: #4b5651; border-radius: 8px; padding: 10px; min-height: 120px; display: grid; place-items: center; }
+  #previewEmpty { color: #cdd8d3; text-align: center; padding: 28px 12px; font-size: .95rem; }
+  #preview { display: none; width: 100%; height: auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.45); cursor: zoom-in; }
+  #previewBox.ready #preview { display: block; }
+  #previewBox.ready #previewEmpty { display: none; }
+
+  #status { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #eef3f0; font-size: .95rem; min-height: 42px; }
+  #status.warn { background: var(--warn-bg); color: var(--warn-ink); }
+  #status.err { background: #fde8e6; color: var(--err); }
+  #status.ok b { background: var(--mark); padding: 0 4px; border-radius: 3px; }
+
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 5;
+  }
+  .bar .row { max-width: 880px; margin: 0 auto; flex-wrap: nowrap; }
+  .bar button { flex: 1 1 0; }
+
+  #zoom { position: fixed; inset: 0; background: #1d2622; z-index: 20; display: none; flex-direction: column; }
+  #zoom.open { display: flex; }
+  #zoom header { color: #fff; display: flex; justify-content: space-between; align-items: center; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; max-width: none; margin: 0; }
+  #zoom header p { margin: 0; color: #cdd8d3; }
+  #zoomScroll { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
+  #zoomImg { display: block; width: 230vw; max-width: none; height: auto; background: #fff; margin: 0 auto; }
+
+  #printArea { display: none; }
+  @page { size: A4 landscape; margin: 0; }
+  @media print {
+    html, body { margin: 0; padding: 0; background: #fff; }
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block; }
+    #printArea img { display: block; width: 297mm; height: 210mm; }
+  }
+  @media (prefers-reduced-motion: no-preference) { button, .btn { transition: background .12s; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lottery Results Printer</h1>
+  <p>Three copies of the day's results on one A4 sheet, ready to cut.</p>
+</header>
+
+<main>
+  <section aria-labelledby="h-date">
+    <h2 id="h-date">Date</h2>
+    <div class="row">
+      <button class="step" id="prev" aria-label="Previous day">&lsaquo;</button>
+      <input type="date" id="date" aria-label="Results date">
+      <button class="step" id="next" aria-label="Next day">&rsaquo;</button>
+      <button id="today">Today</button>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-img">
+    <h2 id="h-img">Results image</h2>
+    <button class="primary" id="find" style="width:100%">Find result for this date</button>
+    <p class="hint" id="avail">Checking which results are available …</p>
+    <a class="hint" id="runLink" href="#" target="_blank" rel="noopener" hidden>Fetch missing results now (opens GitHub)</a>
+
+    <details id="manual">
+      <summary>Add an image yourself</summary>
+      <p class="hint">Use this if the date isn't available above. Save the day's image from Facebook to your phone, then load it here.</p>
+      <a class="btn fb" id="fbLink" href="https://www.facebook.com/lklottery/" target="_blank" rel="noopener" style="margin-top:10px">Open lklottery on Facebook</a>
+      <div class="row" style="margin-top:10px">
+        <button id="choose">Choose image</button>
+        <button id="paste">Paste</button>
+        <button id="fromLink">From link</button>
+      </div>
+      <div class="row" id="linkRow">
+        <input type="url" id="url" inputmode="url" placeholder="https://… direct image link" aria-label="Image link">
+        <button id="loadUrl" style="flex:0 0 auto">Load</button>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-layout">
+    <h2 id="h-layout">Layout</h2>
+    <div class="seg" role="radiogroup" aria-label="Layout">
+      <label><input type="radio" name="layout" value="large" checked><span>Large print<br>(easiest to read)</span></label>
+      <label><input type="radio" name="layout" value="stretch"><span>Stretch whole picture</span></label>
+      <label><input type="radio" name="layout" value="fit"><span>Original proportions</span></label>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-prev">
+    <h2 id="h-prev">Preview</h2>
+    <div id="previewBox">
+      <div id="previewEmpty">No image loaded yet.<br>Choose or paste the results image to see the A4 sheet here.</div>
+      <canvas id="preview" width="1188" height="840" role="img" aria-label="A4 landscape preview with three copies"></canvas>
+    </div>
+    <div id="status" role="status" aria-live="polite">Ready. Pick a date and the result loads by itself.</div>
+    <p class="hint" id="zoomHint" hidden>Tap the preview to zoom in.</p>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="row">
+    <button id="savePdf" disabled>Save PDF</button>
+    <button id="share" disabled hidden>Share</button>
+    <button class="primary" id="print" disabled>Print</button>
+  </div>
+</div>
+
+<div id="zoom" aria-hidden="true">
+  <header><p>Drag to move, pinch to zoom</p><button id="zoomClose">Close</button></header>
+  <div id="zoomScroll"><img id="zoomImg" alt="Full-size A4 sheet"></div>
+</div>
+
+<div id="printArea"><img id="printImg" alt="Lottery results sheet"></div>
+
+<script src="config.js"></script>
+<script src="lottery-core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
