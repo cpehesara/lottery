@@ -23,7 +23,7 @@ input{flex:1;min-width:0}button,.btn{text-decoration:none;text-align:center}
 <img id="pv" alt="Page preview" hidden>
 <div class="row"><button class="primary" id="share" disabled>Print / Share PDF</button><a class="btn" id="open" target="_blank">Open PDF</a></div>
 <script>
-const REPO="YOUR-GITHUB-USER/YOUR-REPO";   // <- edit once (see GUIDE.md)
+const REPO="cpehesara/lottery";   // <- edit once (see GUIDE.md)
 const $=id=>document.getElementById(id);let dates=[],cur=null,filePromise=null;
 async function init(){
   try{dates=await (await fetch("results/index.json",{cache:"no-store"})).json()}catch(e){dates=[]}
