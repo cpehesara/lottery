@@ -1,0 +1,6 @@
+pillow
+numpy
+requests
+playwright
+onnxruntime
+rapidocr

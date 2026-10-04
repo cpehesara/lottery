@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lottery Results</title>
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lottery"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111827">
+<style>
+:root{--bg:#f3f4f6;--fg:#111827;--card:#fff;--ac:#2563eb}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0f19;--fg:#f9fafb;--card:#1f2937}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:17px -apple-system,system-ui,sans-serif;
+padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+h1{font-size:22px;margin:4px 0 12px}.row{display:flex;gap:8px;margin:10px 0;align-items:center}
+input,button,.btn{font:inherit;padding:12px;border-radius:12px;border:1px solid #9ca3af;background:var(--card);color:var(--fg)}
+input{flex:1;min-width:0}button,.btn{text-decoration:none;text-align:center}
+.primary{flex:2;background:var(--ac);color:#fff;border:0;font-weight:600}.btn{flex:1}button:disabled{opacity:.4}
+#pv{width:100%;border-radius:8px;background:#fff;box-shadow:0 2px 10px #0004}#msg{min-height:1.2em}a{color:var(--ac)}
+</style></head><body>
+<h1>Lottery results</h1>
+<div class="row"><button id="prev">◀</button><input type="date" id="d"><button id="next">▶</button><button id="latest">Latest</button></div>
+<p id="msg">Loading…</p>
+<img id="pv" alt="Page preview" hidden>
+<div class="row"><button class="primary" id="share" disabled>Print / Share PDF</button><a class="btn" id="open" target="_blank">Open PDF</a></div>
+<script>
+const REPO="YOUR-GITHUB-USER/YOUR-REPO";   // <- edit once (see GUIDE.md)
+const $=id=>document.getElementById(id);let dates=[],cur=null,filePromise=null;
+async function init(){
+  try{dates=await (await fetch("results/index.json",{cache:"no-store"})).json()}catch(e){dates=[]}
+  if(dates.length){$("d").max=dates[0];show(dates[0])}else $("msg").textContent="No results saved yet."
+}
+function show(d){
+  cur=d;$("d").value=d;filePromise=null;
+  if(!dates.includes(d)){
+    $("pv").hidden=true;$("share").disabled=true;$("open").removeAttribute("href");
+    $("msg").innerHTML=`No saved page for ${d}. <a href="https://github.com/${REPO}/actions/workflows/daily.yml">Ask the robot to fetch it</a> (Run workflow, type the date), then reload in about 5 minutes.`;return}
+  $("msg").textContent=`Results for ${d}`;$("pv").src=`results/${d}.jpg`;$("pv").hidden=false;
+  $("share").disabled=false;$("open").href=`results/${d}.pdf`;
+  filePromise=fetch(`results/${d}.pdf`).then(r=>r.blob()).then(b=>new File([b],`lottery_${d}.pdf`,{type:"application/pdf"})).catch(()=>null)
+}
+function step(n){const t=new Date((cur||dates[0])+"T00:00:00Z");t.setUTCDate(t.getUTCDate()+n);show(t.toISOString().slice(0,10))}
+$("prev").onclick=()=>step(-1);$("next").onclick=()=>step(1);$("latest").onclick=()=>dates.length&&show(dates[0]);
+$("d").onchange=e=>e.target.value&&show(e.target.value);
+$("share").onclick=async()=>{
+  const f=filePromise&&await filePromise;
+  if(f&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:`Lottery results ${cur}`})}catch(e){}}
+  else window.open(`results/${cur}.pdf`,"_blank")
+};
+init();
+</script></body></html>
