@@ -1,6 +1,0 @@
-{
-  "outputDirectory": "site",
-  "headers": [
-    { "source": "/results/index.json", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
-  ]
-}
