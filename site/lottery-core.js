@@ -8,10 +8,44 @@
   // ---------------------------------------------------------------- settings
   const DPI = 300;
   const mm = (v) => Math.round((v / 25.4) * DPI);
-  const PAGE_W = mm(297), PAGE_H = mm(210);   // A4 landscape
+  const PAGE_W = mm(297), PAGE_H = mm(210);   // default A4 landscape (kept for backwards compatibility)
   const MARGIN = mm(4);
   const GAP = mm(3);
-  const COLUMNS = 3;
+
+  /** The print settings the user can change (the app saves them on the device). */
+  const DEFAULT_OPTS = {
+    orientation: 'landscape',  // 'landscape' | 'portrait'
+    columns: 3,                // copies per page, side by side (1-6)
+    textScale: 100,            // result rows: % of the biggest size that fits (40-100)
+    titleScale: 100,           // heading above the table, % (70-140)
+    footerScale: 100,          // the two boxes under the table, % (70-170)
+  };
+
+  const clamp = (v, lo, hi, dflt) => {
+    v = Number(v);
+    return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
+  };
+
+  function normalizeOpts(o) {
+    o = Object.assign({}, DEFAULT_OPTS, o || {});
+    return {
+      orientation: o.orientation === 'portrait' ? 'portrait' : 'landscape',
+      columns: Math.round(clamp(o.columns, 1, 6, DEFAULT_OPTS.columns)),
+      textScale: clamp(o.textScale, 40, 100, 100),
+      titleScale: clamp(o.titleScale, 70, 140, 100),
+      footerScale: clamp(o.footerScale, 70, 170, 100),
+    };
+  }
+
+  /** Page geometry (in pixels at 300 dpi) for the chosen settings. */
+  function geometry(o) {
+    const portrait = o.orientation === 'portrait';
+    return {
+      PAGE_W: portrait ? mm(210) : mm(297),
+      PAGE_H: portrait ? mm(297) : mm(210),
+      MARGIN, GAP, COLUMNS: o.columns, opts: o,
+    };
+  }
 
   class LayoutError extends Error {}
 
@@ -245,22 +279,23 @@
   }
 
   // ---------------------------------------------------------------- layouts
-  function colSize() {
-    return [Math.floor((PAGE_W - 2 * MARGIN - (COLUMNS - 1) * GAP) / COLUMNS), PAGE_H - 2 * MARGIN];
+  function colSize(L) {
+    return [Math.floor((L.PAGE_W - 2 * L.MARGIN - (L.COLUMNS - 1) * L.GAP) / L.COLUMNS), L.PAGE_H - 2 * L.MARGIN];
   }
 
-  function cutGuides(page, colW) {
+  function cutGuides(page, colW, L) {
     const g = ctx(page);
     g.fillStyle = 'rgb(160,160,160)';
-    for (let i = 1; i < COLUMNS; i++) {
-      const x = MARGIN + i * (colW + GAP) - Math.floor(GAP / 2);
-      for (let y = MARGIN; y < PAGE_H - MARGIN; y += 24) g.fillRect(x - 1, y, 2, 12);
+    for (let i = 1; i < L.COLUMNS; i++) {
+      const x = L.MARGIN + i * (colW + L.GAP) - Math.floor(L.GAP / 2);
+      for (let y = L.MARGIN; y < L.PAGE_H - L.MARGIN; y += 24) g.fillRect(x - 1, y, 2, 12);
     }
   }
 
-  function composeSimple(src, stretch = true) {
+  function composeSimple(src, stretch = true, opts) {
+    const L = geometry(normalizeOpts(opts));
     src = autocrop(src);
-    const [colW, colH] = colSize();
+    const [colW, colH] = colSize(L);
     let tile;
     if (stretch) {
       tile = resize(src, colW, colH);
@@ -269,13 +304,13 @@
       tile = resize(src, Math.floor(src.width * scale), Math.floor(src.height * scale));
     }
     tile = unsharp(tile, 3, 110, 2);
-    const page = whiteCanvas(PAGE_W, PAGE_H);
+    const page = whiteCanvas(L.PAGE_W, L.PAGE_H);
     const g = ctx(page);
-    for (let i = 0; i < COLUMNS; i++) {
-      const x = MARGIN + i * (colW + GAP) + Math.floor((colW - tile.width) / 2);
-      g.drawImage(tile, x, MARGIN);
+    for (let i = 0; i < L.COLUMNS; i++) {
+      const x = L.MARGIN + i * (colW + L.GAP) + Math.floor((colW - tile.width) / 2);
+      g.drawImage(tile, x, L.MARGIN);
     }
-    cutGuides(page, colW);
+    cutGuides(page, colW, L);
     return page;
   }
 
@@ -396,10 +431,12 @@
     g.stroke();
   }
 
-  /** A4 landscape, 3 columns, text rebuilt larger without distortion. */
-  function composeLarge(src) {
+  /** A4 (landscape or portrait), 1-6 columns, text rebuilt larger without distortion. */
+  function composeLarge(src, opts) {
+    const O = normalizeOpts(opts);
+    const L = geometry(O);
     const { title, rows, footerBoxes, tiny } = splitResults(src);
-    const [colW, colH] = colSize();
+    const [colW, colH] = colSize(L);
     const pad = mm(1.2);
     const innerW = colW - 2 * pad;
 
@@ -418,22 +455,24 @@
 
     const titleH = title ? title.height : 0;
     const fixed = mm(1.5) + mm(1.0);
-    const footH = mm(10.5);
+    const footH = mm(10.5 * O.footerScale / 100);
     const tinyH = tiny ? mm(2.4) : 0;
     const availH = colH - fixed - footH - tinyH;
     const lineW = Math.max(2, mm(0.35));
-    let s = (availH - (rows.length + 1) * lineW) / (titleH * 1.15 + sum(rowH));
+    const tScale = O.titleScale / 100;
+    let s = (availH - (rows.length + 1) * lineW) / (titleH * 1.15 * tScale + sum(rowH));
 
     const minGap = 7;
     const need = Math.max(...baseW.map((b, i) => b + ntok[i] * minGap));
     s = Math.min(s, innerW / need);
+    s *= O.textScale / 100;          // user's text size (100% = biggest that fits)
     const availSrcW = innerW / s;
 
     let widest = 0;
     baseW.forEach((b, i) => { if (b + ntok[i] * minGap > baseW[widest] + ntok[widest] * minGap) widest = i; });
     const G = Math.max(minGap, Math.min(30, (availSrcW - baseW[widest]) / Math.max(ntok[widest], 1)));
 
-    const est = (titleH * 1.15 + sum(rowH)) * s + (rows.length + 1) * lineW + fixed + footH + tinyH;
+    const est = (titleH * 1.15 * tScale + sum(rowH)) * s + (rows.length + 1) * lineW + fixed + footH + tinyH;
     const rowExtra = Math.floor(Math.max(0, Math.min((colH - est) / rows.length, 0.30 * Math.max(...rowH) * s)));
 
     const built = rows.map(({ name, tokens }, idx) => {
@@ -461,7 +500,7 @@
     g.fillStyle = '#000';
     let y = 0;
     if (title) {
-      const t = resizeCrisp(title, Math.min(s * 1.15, (colW * 0.96) / title.width));
+      const t = resizeCrisp(title, Math.min(s * 1.15 * tScale, (colW * 0.96) / title.width));
       g.drawImage(t, Math.floor((colW - t.width) / 2), y);
       y += t.height + mm(1.5);
     }
@@ -493,26 +532,26 @@
       g.drawImage(ti, 0, y);
     }
 
-    const page = whiteCanvas(PAGE_W, PAGE_H);
+    const page = whiteCanvas(L.PAGE_W, L.PAGE_H);
     const pg = ctx(page);
-    for (let i = 0; i < COLUMNS; i++) pg.drawImage(tile, MARGIN + i * (colW + GAP), MARGIN);
-    cutGuides(page, colW);
+    for (let i = 0; i < L.COLUMNS; i++) pg.drawImage(tile, L.MARGIN + i * (colW + L.GAP), L.MARGIN);
+    cutGuides(page, colW, L);
     return page;
   }
 
   /** mode: 'large' | 'stretch' | 'fit'. Returns { canvas, note }. */
-  function composePage(src, mode = 'large') {
+  function composePage(src, mode = 'large', opts) {
     if (mode === 'large') {
       try {
-        return { canvas: composeLarge(src), note: '' };
+        return { canvas: composeLarge(src, opts), note: '' };
       } catch (e) {
         return {
-          canvas: composeSimple(src, true),
+          canvas: composeSimple(src, true, opts),
           note: `Large-print layout isn't possible for this image (${e.message}). Used the stretch layout instead.`,
         };
       }
     }
-    return { canvas: composeSimple(src, mode !== 'fit'), note: '' };
+    return { canvas: composeSimple(src, mode !== 'fit', opts), note: '' };
   }
 
   // ---------------------------------------------------------------- PDF (single JPEG page, no libraries)
@@ -523,7 +562,8 @@
   async function buildPdf(canvas) {
     const blob = await canvasToBlob(canvas, 'image/jpeg', 0.95);
     const jpg = new Uint8Array(await blob.arrayBuffer());
-    const W = 841.89, H = 595.28;   // A4 landscape in points
+    const land = canvas.width >= canvas.height;
+    const W = land ? 841.89 : 595.28, H = land ? 595.28 : 841.89;   // A4 in points (follows the sheet's orientation)
     const enc = new TextEncoder();
     const parts = [], offsets = [];
     let len = 0;
@@ -547,7 +587,7 @@
   }
 
   const api = {
-    DPI, PAGE_W, PAGE_H, mm, LayoutError,
+    DPI, PAGE_W, PAGE_H, mm, LayoutError, DEFAULT_OPTS, normalizeOpts,
     toCanvas, autocrop, resize, crop,
     parseUserDate, todayISO, addDays, datesIn, readDate, lookupResult,
     splitResults, composePage, composeLarge, composeSimple,
