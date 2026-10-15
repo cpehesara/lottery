@@ -37,7 +37,7 @@
   let renderTimer = null;
 
   const checkedValue = (name) => document.querySelector('input[name=' + name + ']:checked').value;
-  const SLIDERS = ['textScale', 'titleScale', 'footerScale', 'nameScale', 'letterScale', 'numberScale'];
+  const SLIDERS = ['textScale', 'titleScale', 'footerScale', 'nameScale', 'letterScale', 'numberScale', 'tall', 'bold'];
 
   function applyPageStyle() {
     const portrait = settings.orientation === 'portrait';
@@ -72,6 +72,7 @@
       orientation: checkedValue('orient'), columns: +checkedValue('cols'), layout: checkedValue('layout'),
       textScale: +$('textScale').value, titleScale: +$('titleScale').value, footerScale: +$('footerScale').value,
       nameScale: +$('nameScale').value, letterScale: +$('letterScale').value, numberScale: +$('numberScale').value,
+      tall: +$('tall').value, bold: +$('bold').value,
     });
     saveDismissed = false;
     settingsMsg = saved ? 'Different from the settings saved on this device.' : 'Not saved on this device yet.';
@@ -109,8 +110,38 @@
     render();
   };
 
+  // one tap: bigger, bolder, easier-to-read text (keeps the chosen paper and columns)
+  $('easyRead').onclick = () => {
+    settings = cleanSettings(Object.assign({}, settings, { layout: 'large', tall: 160, bold: 50 }));
+    saveDismissed = false;
+    settingsMsg = saved ? 'Different from the settings saved on this device.' : 'Not saved on this device yet.';
+    pushSettingsToUi();
+    applyPageStyle();
+    clearTimeout(renderTimer);
+    render();
+  };
+
   pushSettingsToUi();
   applyPageStyle();
+
+  // ------------------------------------------------------------ real printed text size
+  const MM_TO_PT = 72 / 25.4;
+  function showSizeInfo(info) {
+    const el = $('sizeInfo');
+    if (!info) { el.hidden = true; return; }
+    const n = info.numberMm, nm = info.nameMm;
+    const pt = Math.round(n * MM_TO_PT);
+    let cls, verdict;
+    if (n < 4) { cls = 'small'; verdict = 'Small. For easier reading use “Easy-read”, fewer columns, or Portrait.'; }
+    else if (n < 5) { cls = 'good'; verdict = 'Good size.'; }
+    else { cls = 'big'; verdict = 'Large print, easy to read.'; }
+    let hint = '';
+    if (cls !== 'big' && info.limit === 'width' && settings.tall < 130) hint = ' There is spare height on the page: raise “Taller text”.';
+    el.className = cls;
+    el.textContent = 'Printed size: numbers ' + n.toFixed(1) + ' mm tall (about ' + pt + ' pt), names about ' + nm.toFixed(1) +
+      ' mm. ' + verdict + hint;
+    el.hidden = false;
+  }
 
   // ------------------------------------------------------------ status
   function status(msg, kind) {
@@ -208,6 +239,7 @@
     $('previewBox').classList.add('ready');
     $('zoomHint').hidden = false;
     setActionsEnabled(true);
+    showSizeInfo(res.info);
     if (res.note) status(res.note, 'warn');
     else if (noteExtra) status(noteExtra.text, noteExtra.kind);
     else status('Preview updated.');

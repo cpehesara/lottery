@@ -14,6 +14,7 @@ window.APP_CONFIG = {
   //  orientation: 'landscape' | 'portrait'      columns: 1-6 copies side by side
   //  textScale: 40-100 (100 = biggest that fits)  titleScale: 70-140   footerScale: 70-170
   //  nameScale / letterScale / numberScale: 50-200 (text inside the table; 100 = original look)
+  //  tall: 100-200 (stretch text upwards into spare height)   bold: 0-100 (thicker strokes)
   //  layout: 'large' | 'stretch' | 'fit'
   printDefaults: {
     orientation: 'landscape',
@@ -24,6 +25,8 @@ window.APP_CONFIG = {
     footerScale: 100,
     nameScale: 100,
     letterScale: 100,
-    numberScale: 100
+    numberScale: 100,
+    tall: 100,
+    bold: 0
   }
 };
