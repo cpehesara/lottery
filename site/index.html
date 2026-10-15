@@ -194,7 +194,22 @@
       <div class="lbl"><label for="footerScale">Bottom boxes size</label><output id="footerScaleVal" for="footerScale">100%</output></div>
       <input type="range" id="footerScale" min="70" max="170" step="5" value="100">
     </div>
-    <p class="hint">100% result text is the biggest that fits the column. For larger text use fewer columns (1 or 2 in Portrait gives the biggest). Text sliders work with “Large print” only.</p>
+    <h2 style="margin-top:18px">Text inside the table</h2>
+    <div class="field" style="margin-top:6px">
+      <div class="lbl"><label for="nameScale">Names (left column)</label><output id="nameScaleVal" for="nameScale">100%</output></div>
+      <input type="range" id="nameScale" min="50" max="200" step="5" value="100">
+    </div>
+    <div class="field">
+      <div class="lbl"><label for="letterScale">Letters</label><output id="letterScaleVal" for="letterScale">100%</output></div>
+      <input type="range" id="letterScale" min="50" max="200" step="5" value="100">
+    </div>
+    <div class="field">
+      <div class="lbl"><label for="numberScale">Numbers</label><output id="numberScaleVal" for="numberScale">100%</output></div>
+      <input type="range" id="numberScale" min="50" max="200" step="5" value="100">
+    </div>
+    <p class="hint">The page is already filled, so these three work against each other: raising the numbers to 130% makes them bigger than the names, and the whole table is re-fitted. To make everything bigger, use fewer columns or Portrait, or lower the part you care about least.</p>
+
+    <p class="hint">100% result text is the biggest that fits the column. For larger text use fewer columns (1 or 2 in Portrait gives the biggest). All text sliders work with “Large print” only.</p>
 
     <div id="saveBar" hidden>
       <p>You changed the page settings. Save them on this device for next time?</p>

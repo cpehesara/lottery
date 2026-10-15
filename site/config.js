@@ -13,6 +13,7 @@ window.APP_CONFIG = {
   // Standard print settings (used until a device saves its own choice).
   //  orientation: 'landscape' | 'portrait'      columns: 1-6 copies side by side
   //  textScale: 40-100 (100 = biggest that fits)  titleScale: 70-140   footerScale: 70-170
+  //  nameScale / letterScale / numberScale: 50-200 (text inside the table; 100 = original look)
   //  layout: 'large' | 'stretch' | 'fit'
   printDefaults: {
     orientation: 'landscape',
@@ -20,6 +21,9 @@ window.APP_CONFIG = {
     layout: 'large',
     textScale: 100,
     titleScale: 100,
-    footerScale: 100
+    footerScale: 100,
+    nameScale: 100,
+    letterScale: 100,
+    numberScale: 100
   }
 };

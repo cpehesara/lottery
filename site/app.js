@@ -37,7 +37,7 @@
   let renderTimer = null;
 
   const checkedValue = (name) => document.querySelector('input[name=' + name + ']:checked').value;
-  const SLIDERS = ['textScale', 'titleScale', 'footerScale'];
+  const SLIDERS = ['textScale', 'titleScale', 'footerScale', 'nameScale', 'letterScale', 'numberScale'];
 
   function applyPageStyle() {
     const portrait = settings.orientation === 'portrait';
@@ -71,6 +71,7 @@
     settings = cleanSettings({
       orientation: checkedValue('orient'), columns: +checkedValue('cols'), layout: checkedValue('layout'),
       textScale: +$('textScale').value, titleScale: +$('titleScale').value, footerScale: +$('footerScale').value,
+      nameScale: +$('nameScale').value, letterScale: +$('letterScale').value, numberScale: +$('numberScale').value,
     });
     saveDismissed = false;
     settingsMsg = saved ? 'Different from the settings saved on this device.' : 'Not saved on this device yet.';

@@ -19,6 +19,9 @@
     textScale: 100,            // result rows: % of the biggest size that fits (40-100)
     titleScale: 100,           // heading above the table, % (70-140)
     footerScale: 100,          // the two boxes under the table, % (70-170)
+    nameScale: 100,            // names inside the table (left column), % (50-200)
+    letterScale: 100,          // the letter next to the numbers, % (50-200)
+    numberScale: 100,          // the winning numbers, % (50-200)
   };
 
   const clamp = (v, lo, hi, dflt) => {
@@ -34,6 +37,9 @@
       textScale: clamp(o.textScale, 40, 100, 100),
       titleScale: clamp(o.titleScale, 70, 140, 100),
       footerScale: clamp(o.footerScale, 70, 170, 100),
+      nameScale: clamp(o.nameScale, 50, 200, 100),
+      letterScale: clamp(o.letterScale, 50, 200, 100),
+      numberScale: clamp(o.numberScale, 50, 200, 100),
     };
   }
 
@@ -440,16 +446,24 @@
     const pad = mm(1.2);
     const innerW = colW - 2 * pad;
 
+    // Separate sizes for the three kinds of text inside the table.
+    // 100% = original proportions. Anything above 100% makes that part bigger than the rest;
+    // the whole row is then re-fitted so everything still fits the column.
+    const nm = O.nameScale / 100, lm = O.letterScale / 100, vm = O.numberScale / 100;
+    const M = Math.max(1, nm, lm, vm);          // tallest part decides the row height
+
     const nameW = rows[0].name.width;
     const nameGap = 6;
-    const rowH = rows.map((r) => r.name.height);
+    const rowH = rows.map((r) => r.name.height * M);
     const firstSlot = 17, rightPad = 6;
     const sum = (a) => a.reduce((p, c) => p + c, 0);
 
-    const fixedW = (toks) => {
-      const extra = toks.length && toks[0].width <= firstSlot ? Math.max(0, firstSlot - toks[0].width) : 0;
-      return nameW + nameGap + sum(toks.map((t) => t.width)) + extra + rightPad;
-    };
+    // the first small symbol after the name is the letter; everything after it is a number
+    const hasLetter = (toks) => toks.length > 0 && toks[0].width <= firstSlot;
+    const isLetter = (toks, k) => k === 0 && hasLetter(toks);
+    const tokW = (toks, k) => (isLetter(toks, k) ? Math.max(toks[k].width, firstSlot) * lm : toks[k].width * vm);
+
+    const fixedW = (toks) => nameW * nm + nameGap + sum(toks.map((_, k) => tokW(toks, k))) + rightPad;
     const baseW = rows.map((r) => fixedW(r.tokens));
     const ntok = rows.map((r) => Math.max(r.tokens.length - 1, 0));
 
@@ -465,7 +479,7 @@
     const minGap = 7;
     const need = Math.max(...baseW.map((b, i) => b + ntok[i] * minGap));
     s = Math.min(s, innerW / need);
-    s *= O.textScale / 100;          // user's text size (100% = biggest that fits)
+    s *= O.textScale / 100;          // user's overall text size (100% = biggest that fits)
     const availSrcW = innerW / s;
 
     let widest = 0;
@@ -476,23 +490,21 @@
     const rowExtra = Math.floor(Math.max(0, Math.min((colH - est) / rows.length, 0.30 * Math.max(...rowH) * s)));
 
     const built = rows.map(({ name, tokens }, idx) => {
-      const h = rowH[idx];
-      const row = whiteCanvas(Math.floor(availSrcW) + 1, h);
+      const rh = Math.max(1, Math.round(rowH[idx] * s)) + rowExtra;
+      const row = whiteCanvas(Math.floor(innerW), rh);
       const g = ctx(row);
-      g.drawImage(name, 0, 0);
-      let x = nameW + nameGap;
+      // each part is resized once, straight to its final size (sharper than scaling twice)
+      const put = (part, mul, xSrc) => {
+        const im = resizeCrisp(part, s * mul);
+        g.drawImage(im, Math.floor(xSrc * s), Math.floor((rh - im.height) / 2));
+      };
+      put(name, nm, 0);
+      let x = nameW * nm + nameGap;
       tokens.forEach((t, k) => {
-        g.drawImage(t, Math.floor(x), 0);
-        const slot = k === 0 && t.width <= firstSlot ? Math.max(t.width, firstSlot) : t.width;
-        x += slot + G;
+        put(t, isLetter(tokens, k) ? lm : vm, x);
+        x += tokW(tokens, k) + G;
       });
-      let r = resizeCrisp(row, s);
-      if (rowExtra) {
-        const padded = whiteCanvas(r.width, r.height + rowExtra);
-        ctx(padded).drawImage(r, 0, Math.floor(rowExtra / 2));
-        r = padded;
-      }
-      return r;
+      return row;
     });
 
     const tile = whiteCanvas(colW, colH);
