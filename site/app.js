@@ -3,145 +3,10 @@
   const C = window.LotteryCore;
   const $ = (id) => document.getElementById(id);
 
-  const state = { src: null, imgDate: null, page: null, pageUrl: null, busy: false, token: 0 };
+  const state = { src: null, imgDate: null, page: null, pageUrl: null, token: 0 };
 
-  // ------------------------------------------------------------ print settings (saved on this device)
-  // Stored in this browser's localStorage, so every phone/computer keeps its own choice.
-  const SETTINGS_KEY = 'lotteryPrintSettings.v1';
-  const LAYOUTS = ['large', 'stretch', 'fit'];
-
-  function cleanSettings(o) {
-    const n = C.normalizeOpts(o);
-    n.layout = o && LAYOUTS.indexOf(o.layout) >= 0 ? o.layout : 'large';
-    return n;
-  }
-  const sameSettings = (a, b) => JSON.stringify(cleanSettings(a)) === JSON.stringify(cleanSettings(b));
-
-  const defaultSettings = cleanSettings(Object.assign({ layout: 'large' }, C.DEFAULT_OPTS,
-    (window.APP_CONFIG && window.APP_CONFIG.printDefaults) || {}));
-
-  function readStored() {
-    try {
-      const raw = localStorage.getItem(SETTINGS_KEY);
-      return raw ? cleanSettings(JSON.parse(raw)) : null;
-    } catch (e) { return null; }
-  }
-  function writeStored(v) {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(v)); return true; } catch (e) { return false; }
-  }
-
-  let saved = readStored();                       // null = nothing saved on this device yet
-  let settings = Object.assign({}, saved || defaultSettings);
-  let saveDismissed = false;
-  let settingsMsg = saved ? 'Using the settings saved on this device.' : 'Using the standard settings. Nothing saved on this device yet.';
-  let renderTimer = null;
-
-  const checkedValue = (name) => document.querySelector('input[name=' + name + ']:checked').value;
-  const SLIDERS = ['textScale', 'titleScale', 'footerScale', 'nameScale', 'letterScale', 'numberScale', 'tall', 'bold'];
-
-  function applyPageStyle() {
-    const portrait = settings.orientation === 'portrait';
-    let el = $('pageStyle');
-    if (!el) { el = document.createElement('style'); el.id = 'pageStyle'; document.head.appendChild(el); }
-    el.textContent = '@page { size: A4 ' + (portrait ? 'portrait' : 'landscape') + '; margin: 0; } ' +
-      ':root { --sheet-w: ' + (portrait ? '210mm' : '297mm') + '; --sheet-h: ' + (portrait ? '297mm' : '210mm') + '; }';
-  }
-
-  function refreshSettingsUi() {
-    SLIDERS.forEach((k) => {
-      $(k).value = settings[k];
-      $(k + 'Val').textContent = settings[k] + '%';
-      $(k).disabled = settings.layout !== 'large';
-    });
-    const base = saved || defaultSettings;
-    const dirty = !sameSettings(settings, base);
-    $('saveBar').hidden = !(dirty && !saveDismissed);
-    $('saveSettings').disabled = !!saved && sameSettings(settings, saved);
-    $('settingsNote').textContent = settingsMsg;
-  }
-
-  function pushSettingsToUi() {
-    document.querySelector('input[name=orient][value=' + settings.orientation + ']').checked = true;
-    document.querySelector('input[name=cols][value="' + settings.columns + '"]').checked = true;
-    document.querySelector('input[name=layout][value=' + settings.layout + ']').checked = true;
-    refreshSettingsUi();
-  }
-
-  function settingsChanged() {
-    settings = cleanSettings({
-      orientation: checkedValue('orient'), columns: +checkedValue('cols'), layout: checkedValue('layout'),
-      textScale: +$('textScale').value, titleScale: +$('titleScale').value, footerScale: +$('footerScale').value,
-      nameScale: +$('nameScale').value, letterScale: +$('letterScale').value, numberScale: +$('numberScale').value,
-      tall: +$('tall').value, bold: +$('bold').value,
-    });
-    saveDismissed = false;
-    settingsMsg = saved ? 'Different from the settings saved on this device.' : 'Not saved on this device yet.';
-    applyPageStyle();
-    refreshSettingsUi();
-    clearTimeout(renderTimer);
-    renderTimer = setTimeout(() => render(), 250);      // wait while a slider is still moving
-  }
-
-  function saveSettingsNow() {
-    if (writeStored(settings)) {
-      saved = Object.assign({}, settings);
-      settingsMsg = 'Saved on this device. They load automatically next time you open this page here.';
-      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* optional */ }
-    } else {
-      settingsMsg = 'This browser would not save the settings (private mode or storage blocked). They still apply until you close the page.';
-    }
-    saveDismissed = true;
-    refreshSettingsUi();
-  }
-
-  ['orient', 'cols', 'layout'].forEach((n) =>
-    document.querySelectorAll('input[name=' + n + ']').forEach((r) => r.addEventListener('change', settingsChanged)));
-  SLIDERS.forEach((k) => $(k).addEventListener('input', settingsChanged));
-  $('saveYes').onclick = saveSettingsNow;
-  $('saveSettings').onclick = saveSettingsNow;
-  $('saveNo').onclick = () => { saveDismissed = true; refreshSettingsUi(); };
-  $('resetSettings').onclick = () => {
-    settings = Object.assign({}, defaultSettings);
-    saveDismissed = false;
-    settingsMsg = 'Back to the standard settings' + (saved ? ' (the saved ones are unchanged until you save).' : '.');
-    pushSettingsToUi();
-    applyPageStyle();
-    clearTimeout(renderTimer);
-    render();
-  };
-
-  // one tap: bigger, bolder, easier-to-read text (keeps the chosen paper and columns)
-  $('easyRead').onclick = () => {
-    settings = cleanSettings(Object.assign({}, settings, { layout: 'large', tall: 160, bold: 50 }));
-    saveDismissed = false;
-    settingsMsg = saved ? 'Different from the settings saved on this device.' : 'Not saved on this device yet.';
-    pushSettingsToUi();
-    applyPageStyle();
-    clearTimeout(renderTimer);
-    render();
-  };
-
-  pushSettingsToUi();
-  applyPageStyle();
-
-  // ------------------------------------------------------------ real printed text size
-  const MM_TO_PT = 72 / 25.4;
-  function showSizeInfo(info) {
-    const el = $('sizeInfo');
-    if (!info) { el.hidden = true; return; }
-    const n = info.numberMm, nm = info.nameMm;
-    const pt = Math.round(n * MM_TO_PT);
-    let cls, verdict;
-    if (n < 4) { cls = 'small'; verdict = 'Small. For easier reading use “Easy-read”, fewer columns, or Portrait.'; }
-    else if (n < 5) { cls = 'good'; verdict = 'Good size.'; }
-    else { cls = 'big'; verdict = 'Large print, easy to read.'; }
-    let hint = '';
-    if (cls !== 'big' && info.limit === 'width' && settings.tall < 130) hint = ' There is spare height on the page: raise “Taller text”.';
-    el.className = cls;
-    el.textContent = 'Printed size: numbers ' + n.toFixed(1) + ' mm tall (about ' + pt + ' pt), names about ' + nm.toFixed(1) +
-      ' mm. ' + verdict + hint;
-    el.hidden = false;
-  }
+  // Old versions saved print settings on the device; they are no longer used.
+  try { localStorage.removeItem('lotteryPrintSettings.v1'); } catch (e) { /* ignore */ }
 
   // ------------------------------------------------------------ status
   function status(msg, kind) {
@@ -204,8 +69,7 @@
   }
 
   // ------------------------------------------------------------ rendering
-  const layoutValue = () => document.querySelector('input[name=layout]:checked').value;
-  const nextFrame = () => new Promise((r) => setTimeout(r, 30));
+    const nextFrame = () => new Promise((r) => setTimeout(r, 30));
 
   function setActionsEnabled(on) {
     ['savePdf', 'print', 'share'].forEach((id) => { $(id).disabled = !on; });
@@ -219,7 +83,7 @@
     await nextFrame();
     let res;
     try {
-      res = C.composePage(state.src, layoutValue(), settings);
+      res = C.composePage(state.src);
     } catch (e) {
       status('Could not build the page: ' + e.message, 'err');
       return;
@@ -229,17 +93,14 @@
     if (state.pageUrl) { URL.revokeObjectURL(state.pageUrl); state.pageUrl = null; }
 
     const pv = $('preview');
-    const portrait = settings.orientation === 'portrait';
-    pv.width = portrait ? 840 : 1188;
-    pv.height = portrait ? 1188 : 840;
-    pv.classList.toggle('portrait', portrait);
+    pv.width = 840;
+    pv.height = 1188;
     const g = pv.getContext('2d');
     g.imageSmoothingQuality = 'high';
     g.drawImage(state.page, 0, 0, pv.width, pv.height);
     $('previewBox').classList.add('ready');
     $('zoomHint').hidden = false;
     setActionsEnabled(true);
-    showSizeInfo(res.info);
     if (res.note) status(res.note, 'warn');
     else if (noteExtra) status(noteExtra.text, noteExtra.kind);
     else status('Preview updated.');
@@ -439,7 +300,6 @@
   $('print').onclick = async () => {
     if (!state.page) return;
     const img = $('printImg');
-    applyPageStyle();
     img.onload = () => setTimeout(() => window.print(), 150);
     img.src = await pageUrl();
     status('Print dialog opening. If nothing appears, use Save PDF and print from your files app.');
@@ -466,8 +326,7 @@
   // ------------------------------------------------------------ full-screen preview
   async function openZoom() {
     if (!state.page) return;
-    $('zoomImg').style.width = settings.orientation === 'portrait' ? '150vw' : '230vw';
-    $('zoomImg').src = await pageUrl();
+        $('zoomImg').src = await pageUrl();
     $('zoom').classList.add('open');
     $('zoom').setAttribute('aria-hidden', 'false');
   }

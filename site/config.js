@@ -9,24 +9,4 @@ window.APP_CONFIG = {
   // Optional: link shown when a date is missing, so you can start a fetch from your phone.
   //   'https://github.com/YOUR-NAME/YOUR-REPO/actions/workflows/fetch.yml'
   actionsUrl: '',
-
-  // Standard print settings (used until a device saves its own choice).
-  //  orientation: 'landscape' | 'portrait'      columns: 1-6 copies side by side
-  //  textScale: 40-100 (100 = biggest that fits)  titleScale: 70-140   footerScale: 70-170
-  //  nameScale / letterScale / numberScale: 50-200 (text inside the table; 100 = original look)
-  //  tall: 100-200 (stretch text upwards into spare height)   bold: 0-100 (thicker strokes)
-  //  layout: 'large' | 'stretch' | 'fit'
-  printDefaults: {
-    orientation: 'landscape',
-    columns: 3,
-    layout: 'large',
-    textScale: 100,
-    titleScale: 100,
-    footerScale: 100,
-    nameScale: 100,
-    letterScale: 100,
-    numberScale: 100,
-    tall: 100,
-    bold: 0
-  }
 };

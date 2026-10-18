@@ -6,56 +6,18 @@
   'use strict';
 
   // ---------------------------------------------------------------- settings
+  // Fixed print format: A4 portrait, two copies side by side, one sheet.
   const DPI = 300;
   const mm = (v) => Math.round((v / 25.4) * DPI);
-  const PAGE_W = mm(297), PAGE_H = mm(210);   // default A4 landscape (kept for backwards compatibility)
-  const MARGIN = mm(4);
+  const PAGE_W = mm(210), PAGE_H = mm(297);
+  const MARGIN = mm(3.5);
   const GAP = mm(3);
-
-  /** The print settings the user can change (the app saves them on the device). */
-  const DEFAULT_OPTS = {
-    orientation: 'landscape',  // 'landscape' | 'portrait'
-    columns: 3,                // copies per page, side by side (1-6)
-    textScale: 100,            // result rows: % of the biggest size that fits (40-100)
-    titleScale: 100,           // heading above the table, % (70-140)
-    footerScale: 100,          // the two boxes under the table, % (70-170)
-    nameScale: 100,            // names inside the table (left column), % (50-200)
-    letterScale: 100,          // the letter next to the numbers, % (50-200)
-    numberScale: 100,          // the winning numbers, % (50-200)
-    tall: 100,                 // stretch text taller (uses spare page height), % (100-200)
-    bold: 0,                   // thicker, darker strokes, 0-100
-  };
-
-  const clamp = (v, lo, hi, dflt) => {
-    v = Number(v);
-    return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
-  };
-
-  function normalizeOpts(o) {
-    o = Object.assign({}, DEFAULT_OPTS, o || {});
-    return {
-      orientation: o.orientation === 'portrait' ? 'portrait' : 'landscape',
-      columns: Math.round(clamp(o.columns, 1, 6, DEFAULT_OPTS.columns)),
-      textScale: clamp(o.textScale, 40, 100, 100),
-      titleScale: clamp(o.titleScale, 70, 140, 100),
-      footerScale: clamp(o.footerScale, 70, 170, 100),
-      nameScale: clamp(o.nameScale, 50, 200, 100),
-      letterScale: clamp(o.letterScale, 50, 200, 100),
-      numberScale: clamp(o.numberScale, 50, 200, 100),
-      tall: clamp(o.tall, 100, 200, 100),
-      bold: clamp(o.bold, 0, 100, 0),
-    };
-  }
-
-  /** Page geometry (in pixels at 300 dpi) for the chosen settings. */
-  function geometry(o) {
-    const portrait = o.orientation === 'portrait';
-    return {
-      PAGE_W: portrait ? mm(210) : mm(297),
-      PAGE_H: portrait ? mm(297) : mm(210),
-      MARGIN, GAP, COLUMNS: o.columns, opts: o,
-    };
-  }
+  const COLUMNS = 2;
+  const BOLD = 55;            // stroke thickness 0-100 (thick strokes read much better for older eyes)
+  const MAX_STRETCH = 3.2;    // names may be this many times taller than wide
+  const NAME_FRAC = 0.37;     // share of the column width given to the lottery name
+  const SXT_CAP = 5.4;        // widest the numbers may be scaled
+  const DIGIT_STRETCH = 1.9;  // numbers may be this many times taller than wide
 
   class LayoutError extends Error {}
 
@@ -288,39 +250,27 @@
     };
   }
 
-  // ---------------------------------------------------------------- layouts
-  function colSize(L) {
-    return [Math.floor((L.PAGE_W - 2 * L.MARGIN - (L.COLUMNS - 1) * L.GAP) / L.COLUMNS), L.PAGE_H - 2 * L.MARGIN];
-  }
+  // ---------------------------------------------------------------- layout
+  const colSize = () => [Math.floor((PAGE_W - 2 * MARGIN - (COLUMNS - 1) * GAP) / COLUMNS), PAGE_H - 2 * MARGIN];
 
-  function cutGuides(page, colW, L) {
+  function cutGuides(page, colW) {
     const g = ctx(page);
     g.fillStyle = 'rgb(160,160,160)';
-    for (let i = 1; i < L.COLUMNS; i++) {
-      const x = L.MARGIN + i * (colW + L.GAP) - Math.floor(L.GAP / 2);
-      for (let y = L.MARGIN; y < L.PAGE_H - L.MARGIN; y += 24) g.fillRect(x - 1, y, 2, 12);
+    for (let i = 1; i < COLUMNS; i++) {
+      const x = MARGIN + i * (colW + GAP) - Math.floor(GAP / 2);
+      for (let y = MARGIN; y < PAGE_H - MARGIN; y += 24) g.fillRect(x - 1, y, 2, 12);
     }
   }
 
-  function composeSimple(src, stretch = true, opts) {
-    const L = geometry(normalizeOpts(opts));
+  /** Fallback when the image cannot be split into rows: the whole picture stretched into each column. */
+  function composeSimple(src) {
     src = autocrop(src);
-    const [colW, colH] = colSize(L);
-    let tile;
-    if (stretch) {
-      tile = resize(src, colW, colH);
-    } else {
-      const scale = Math.min(colW / src.width, colH / src.height);
-      tile = resize(src, Math.floor(src.width * scale), Math.floor(src.height * scale));
-    }
-    tile = unsharp(tile, 3, 110, 2);
-    const page = whiteCanvas(L.PAGE_W, L.PAGE_H);
+    const [colW, colH] = colSize();
+    const tile = unsharp(resize(src, colW, colH), 3, 110, 2);
+    const page = whiteCanvas(PAGE_W, PAGE_H);
     const g = ctx(page);
-    for (let i = 0; i < L.COLUMNS; i++) {
-      const x = L.MARGIN + i * (colW + L.GAP) + Math.floor((colW - tile.width) / 2);
-      g.drawImage(tile, x, L.MARGIN);
-    }
-    cutGuides(page, colW, L);
+    for (let i = 0; i < COLUMNS; i++) g.drawImage(tile, MARGIN + i * (colW + GAP), MARGIN);
+    cutGuides(page, colW);
     return page;
   }
 
@@ -458,135 +408,130 @@
     return r < 0 ? null : { l, t, r: r + 1, b: b + 1 };
   }
 
-  const median = (a) => {
-    if (!a.length) return 0;
-    const v = a.slice().sort((x, y) => x - y);
-    return v[Math.floor(v.length / 2)];
-  };
-
   /**
-   * A4 (landscape or portrait), 1-6 columns, text rebuilt larger.
-   *  - every row is trimmed to the real ink, so no page space is wasted on blank margins
-   *  - names / letters / numbers have their own size
-   *  - "tall" stretches the text vertically into the spare page height (width is usually the limit)
-   *  - "bold" makes the strokes thicker and darker
-   * Returns { canvas, info } where info has the printed text heights in millimetres.
+   * The large-print sheet: A4 portrait, two copies side by side, everything on ONE page.
+   *  - the text is rebuilt from the original picture: name, letter and numbers share one row
+   *  - width and height are scaled separately: width is limited by the column, but the page is
+   *    tall, so the text is stretched upwards until the rows fill the whole page
+   *  - blank space inside rows is cut to a minimum; strokes are made thicker
    */
-  function composeLargeDetailed(src, opts) {
-    const O = normalizeOpts(opts);
-    const L = geometry(O);
+  function composeLarge(src) {
     const { title, rows, footerBoxes, tiny } = splitResults(src);
-    const [colW, colH] = colSize(L);
-    const pad = mm(1.8);
+    const [colW, colH] = colSize();
+    const n = rows.length;
+    const pad = mm(0.8);                    // side padding inside the table
     const innerW = colW - 2 * pad;
+    const lineW = Math.max(3, mm(0.45));
 
     // stroke weight: moving the black/white threshold up makes strokes thicker
-    const centre = 135 + O.bold * 0.45, halfRamp = 65 - O.bold * 0.2;
+    const centre = 135 + BOLD * 0.45, halfRamp = 65 - BOLD * 0.2;
     const lo = centre - halfRamp, hi = centre + halfRamp;
     const rz = (c, fx, fy) => crisp(resize(c, c.width * fx, c.height * fy), lo, hi);
-
-    const nm = O.nameScale / 100, lm = O.letterScale / 100, vm = O.numberScale / 100;
-    const T = O.tall / 100;
-    const M = Math.max(1, nm, lm, vm);          // the biggest part decides the row height
-
-    // ---- trim the rows to their ink. One common vertical window for ALL rows keeps the rows the same
-    // height and the text on the same baseline.
-    const firstSlot = 17;
-    const allExts = rows.map(({ name, tokens }) => [name].concat(tokens).map((c) => inkExtent(c)));
-    let gt = 1e9, gb = -1;
-    allExts.forEach((list) => list.forEach((e) => { if (e) { if (e.t < gt) gt = e.t; if (e.b > gb) gb = e.b; } }));
-    if (gb < 0) { gt = 0; gb = rows[0].name.height; }
-    gt = Math.max(0, gt - 1); gb = gb + 1;
-    const winH = Math.max(1, gb - gt);
-    const cropWin = (c, x, w) => {            // [x, x+w] x [gt, gb] of c, white where c is too short
-      const out = whiteCanvas(Math.max(1, Math.round(w)), winH);
-      ctx(out).drawImage(c, -x, -gt);
-      return out;
-    };
-    const prepped = rows.map(({ name, tokens }, i) => {
-      const exts = allExts[i];
-      const ne = exts[0];
-      return {
-        h: winH,
-        name: ne ? cropWin(name, ne.l, ne.r - ne.l) : cropWin(name, 0, name.width),
-        tokens: tokens.map((tk) => cropWin(tk, 0, tk.width)),
-        tokInk: exts.slice(1).map((e) => (e ? e.b - e.t : 0)),
-        nameInk: ne ? ne.b - ne.t : 0,
-      };
-    });
-
-    const nameW = Math.max(...prepped.map((r) => r.name.width));
-    const nameGap = 12;
-    const rowInk = prepped.map((r) => r.h);
-    const maxInk = Math.max(...rowInk);
-    const rightPad = 4;
     const sum = (a) => a.reduce((p, c) => p + c, 0);
 
-    // the first small symbol after the name is the letter; everything after it is a number
-    const hasLetter = (toks) => toks.length > 0 && toks[0].width <= firstSlot;
-    const isLetter = (toks, k) => k === 0 && hasLetter(toks);
-    const tokW = (toks, k) => (isLetter(toks, k) ? Math.max(toks[k].width, firstSlot) * lm : toks[k].width * vm);
+    // ---- name column (name + draw number stacked): own vertical window
+    const firstSlot = 17;
+    const nameExts = rows.map(({ name }) => inkExtent(name));
+    let nt = 1e9, nb = -1;
+    nameExts.forEach((e) => { if (e) { if (e.t < nt) nt = e.t; if (e.b > nb) nb = e.b; } });
+    if (nb < 0) { nt = 0; nb = rows[0].name.height; }
+    nt = Math.max(0, nt - 1); nb = nb + 1;
+    const winN = Math.max(1, nb - nt);
+    const nameImgs = rows.map(({ name }, i) => {
+      const e = nameExts[i];
+      const x = e ? e.l : 0, w = e ? e.r - e.l : name.width;
+      const out = whiteCanvas(Math.max(1, w), winN);
+      ctx(out).drawImage(name, -x, -nt);
+      return out;
+    });
+    const nameW = Math.max(...nameImgs.map((c) => c.width));
 
-    const baseW = prepped.map((r) => nameW * nm + nameGap + sum(r.tokens.map((_, k) => tokW(r.tokens, k))) + rightPad);
-    const ntok = prepped.map((r) => Math.max(r.tokens.length - 1, 0));
+    // ---- value tokens (letter, numbers, circles, boxes): trimmed to their own ink height
+    const tokRows = rows.map(({ tokens }) => tokens.map((tk) => {
+      const e = inkExtent(tk);
+      if (!e) return { img: tk, h: tk.height };
+      const out = whiteCanvas(tk.width, e.b - e.t + 2);
+      ctx(out).drawImage(tk, 0, -(e.t - 1));
+      return { img: out, h: out.height };
+    }));
+    const hs = [].concat(...tokRows.map((r) => r.map((t) => t.h))).sort((a, b) => a - b);
+    const medH = hs.length ? hs[Math.floor(hs.length / 2)] : 14;
+    const isTall = (t) => t.h > medH * 1.5;           // circles, boxes, zodiac pictures
+    const hasLetter = (r) => r.length > 0 && r[0].img.width <= firstSlot;
+    const slotW = (r, k) => (k === 0 && hasLetter(r) ? Math.max(r[k].img.width, firstSlot) : r[k].img.width);
+    const rowSum = tokRows.map((r) => sum(r.map((_, k) => slotW(r, k))));
+    const rowGaps = tokRows.map((r) => Math.max(r.length - 1, 0));
 
-    // ---- vertical budget
-    const rowSrcH = rowInk.map((h) => h * M * T);          // text height of a row (source px)
-    const padSrc = 0.55 * maxInk;                           // breathing space per row (source px)
-    const titleH = title ? title.height : 0;
-    const fixed = mm(1.5) + mm(1.0);
-    const footH = mm(10.5 * O.footerScale / 100);
-    const tinyH = tiny ? mm(2.4) : 0;
-    const availH = colH - fixed - footH - tinyH;
-    const lineW = Math.max(2, mm(0.35));
-    const tScale = O.titleScale / 100;
-    let s = (availH - (rows.length + 1) * lineW) / (titleH * 1.15 * tScale + sum(rowSrcH) + rows.length * padSrc);
+    // ---- the fixed parts above and below the table
+    let tScale = 0, titleH = 0, titleBlock = 0;
+    if (title) {
+      tScale = (colW * 0.98) / title.width;                                   // full column width
+      const tall = Math.min(1.15, Math.max(0.8, (0.07 * colH) / (title.height * tScale)));
+      titleH = Math.round(title.height * tScale * tall);
+      titleBlock = titleH + mm(1.0);
+    }
+    const halfW = Math.floor((colW - mm(1.5)) / 2);
+    const fbMaxH = Math.max(...footerBoxes.map((f) => f.height));
+    const fPad = mm(1.4);
+    const fScale = Math.min(
+      ...footerBoxes.map((f) => (halfW - 2 * mm(2)) / f.width),
+      (mm(13) - 2 * fPad) / fbMaxH);
+    const footH = Math.ceil(fbMaxH * fScale + 2 * fPad);
+    const tinyH = tiny ? Math.ceil((tiny.height * colW) / tiny.width) : 0;
+    const bottomBlock = mm(0.8) + footH + (tiny ? mm(0.5) + tinyH : 0);
 
-    // ---- horizontal budget
-    const minGap = 7;
-    const need = Math.max(...baseW.map((b, i) => b + ntok[i] * minGap));
-    const sWidth = innerW / need;
-    s = Math.min(s, sWidth);
-    s *= O.textScale / 100;          // overall text size (100% = biggest that fits)
-    const availSrcW = innerW / s;
+    // ---- vertical fit: the rows share all the remaining height
+    const rowsAvail = colH - titleBlock - bottomBlock - (n + 1) * lineW - 2;
+    const rowH = Math.floor(rowsAvail / n);
+    const rowPad = mm(0.9);                                // total blank space above + below the text
+    const usable = rowH - rowPad;
 
-    let widest = 0;
-    baseW.forEach((b, i) => { if (b + ntok[i] * minGap > baseW[widest] + ntok[widest] * minGap) widest = i; });
-    const G = Math.max(minGap, Math.min(30, (availSrcW - baseW[widest]) / Math.max(ntok[widest], 1)));
+    // ---- name column scale
+    const sxN = (NAME_FRAC * innerW) / nameW;
+    const syN = Math.min(usable / winN, sxN * MAX_STRETCH);
+    const nameColW = Math.ceil(nameW * sxN);
 
-    const used = (titleH * 1.15 * tScale + sum(rowSrcH) + rows.length * padSrc) * s + (rows.length + 1) * lineW + fixed + footH + tinyH;
-    const rowExtra = Math.floor(Math.max(0, Math.min((colH - used) / rows.length, 0.6 * maxInk * s)));
+    // ---- value scale: separate from the name, so numbers can use the full row height and width
+    const nameGapOut = mm(1.6);
+    const availW = innerW - nameColW - nameGapOut - mm(1.6);   // keep clear of the right border
+    const gapMin = mm(2.0);
+    // each row gets the widest scale that fits it (sparse rows get wider digits)
+    const sxRow = rowSum.map((s2, i) => Math.min(SXT_CAP, (availW - rowGaps[i] * gapMin) / s2));
+    const syBase = (usable * 0.84) / medH;
 
     // ---- build the rows
-    const built = prepped.map(({ name, tokens }, idx) => {
-      const rh = Math.max(1, Math.round((rowSrcH[idx] + padSrc) * s)) + rowExtra;
-      const row = whiteCanvas(Math.floor(innerW), rh);
+    const built = rows.map((_, ri) => {
+      const row = whiteCanvas(Math.floor(innerW), rowH);
       const g = ctx(row);
-      const put = (part, mul, xSrc) => {      // each part is resized once, straight to its final size
-        const im = rz(part, s * mul, s * mul * T);
-        g.drawImage(im, Math.floor(xSrc * s), Math.floor((rh - im.height) / 2));
-      };
-      put(name, nm, 0);
-      let x = nameW * nm + nameGap;
-      tokens.forEach((t, k) => {
-        put(t, isLetter(tokens, k) ? lm : vm, x);
-        x += tokW(tokens, k) + G;
+      const ni = rz(nameImgs[ri], sxN, syN);
+      g.drawImage(ni, 0, Math.floor((rowH - ni.height) / 2));
+      const r = tokRows[ri];
+      const sxT = sxRow[ri];
+      const syT = Math.min(syBase, sxT * DIGIT_STRETCH);
+      const left = availW - rowSum[ri] * sxT;
+      const G = rowGaps[ri] ? Math.max(gapMin, Math.min(gapMin * 2.2, left / rowGaps[ri])) : 0;
+      let x = nameColW + nameGapOut;
+      r.forEach((t, k) => {
+        const fy = isTall(t) ? Math.min(usable / t.h, sxT * 2.4) : syT;
+        const im = rz(t.img, sxT, fy);
+        g.drawImage(im, Math.floor(x), Math.floor((rowH - im.height) / 2));
+        x += slotW(r, k) * sxT + G;
       });
       return row;
     });
 
+    // ---- assemble one copy
     const tile = whiteCanvas(colW, colH);
     const g = ctx(tile);
     g.fillStyle = '#000';
     let y = 0;
     if (title) {
-      const f = Math.min(s * 1.15 * tScale, (colW * 0.96) / title.width);
-      const t = rz(title, f, f);
-      g.drawImage(t, Math.floor((colW - t.width) / 2), y);
-      y += t.height + mm(1.5);
+      const t = rz(title, tScale, titleH / title.height);
+      g.drawImage(t, Math.floor((colW - t.width) / 2), 0);
+      y = titleBlock;
     }
     const boxTop = y;
-    const boxH = sum(built.map((r) => r.height)) + (built.length + 1) * lineW;
+    const boxH = n * rowH + (n + 1) * lineW;
     frame(g, 0, boxTop, colW, boxH, lineW);
     y = boxTop + lineW;
     built.forEach((r) => {
@@ -597,58 +542,33 @@
     });
     y = boxTop + boxH + mm(1.0);
 
-    const halfW = Math.floor((colW - mm(1.5)) / 2);
     const footTop = y;
     footerBoxes.forEach((fb, i) => {
-      const f = Math.min((halfW - 2 * mm(3.0)) / fb.width, (footH - 2 * mm(2.2)) / fb.height);
-      const fi = rz(fb, f, f);
+      const fi = rz(fb, fScale, fScale);
       const bx = i * (halfW + mm(1.5));
       roundedFrame(g, bx, footTop, halfW, footH, mm(1.5), lineW);
       g.drawImage(fi, bx + Math.floor((halfW - fi.width) / 2), footTop + Math.floor((footH - fi.height) / 2));
     });
     y = footTop + footH + mm(0.6);
+    if (tiny && y + tinyH <= colH + 2) g.drawImage(resize(tiny, colW, tinyH), 0, y);
 
-    if (tiny && y < colH) {
-      const ti = resize(tiny, colW, Math.max(1, Math.floor((tiny.height * colW) / tiny.width)));
-      g.drawImage(ti, 0, y);
-    }
-
-    const page = whiteCanvas(L.PAGE_W, L.PAGE_H);
+    const page = whiteCanvas(PAGE_W, PAGE_H);
     const pg = ctx(page);
-    for (let i = 0; i < L.COLUMNS; i++) pg.drawImage(tile, L.MARGIN + i * (colW + L.GAP), L.MARGIN);
-    cutGuides(page, colW, L);
-
-    // ---- printed text heights (millimetres) so the app can tell whether it is easy to read
-    const mmPer = 25.4 / DPI;
-    const digitInk = [], letterInk = [];
-    prepped.forEach((r) => r.tokens.forEach((_, k) => (isLetter(r.tokens, k) ? letterInk : digitInk).push(r.tokInk[k])));
-    const info = {
-      numberMm: median(digitInk) * s * vm * T * mmPer,
-      letterMm: median(letterInk) * s * lm * T * mmPer,
-      nameMm: median(prepped.map((r) => r.nameInk)) * 0.75 * s * nm * T * mmPer,   // ~ capital-letter height
-      scale: s,
-      limit: sWidth <= availH / (titleH * 1.15 * tScale + sum(rowSrcH) + rows.length * padSrc) ? 'width' : 'height',
-    };
-    return { canvas: page, info };
+    for (let i = 0; i < COLUMNS; i++) pg.drawImage(tile, MARGIN + i * (colW + GAP), MARGIN);
+    cutGuides(page, colW);
+    return page;
   }
 
-  const composeLarge = (src, opts) => composeLargeDetailed(src, opts).canvas;
-
-  /** mode: 'large' | 'stretch' | 'fit'. Returns { canvas, note }. */
-  function composePage(src, mode = 'large', opts) {
-    if (mode === 'large') {
-      try {
-        const r = composeLargeDetailed(src, opts);
-        return { canvas: r.canvas, note: '', info: r.info };
-      } catch (e) {
-        return {
-          canvas: composeSimple(src, true, opts),
-          note: `Large-print layout isn't possible for this image (${e.message}). Used the stretch layout instead.`,
-          info: null,
-        };
-      }
+  /** Returns { canvas, note }. Falls back to a plain stretched copy if the image cannot be split. */
+  function composePage(src) {
+    try {
+      return { canvas: composeLarge(src), note: '' };
+    } catch (e) {
+      return {
+        canvas: composeSimple(src),
+        note: `Large-print layout isn't possible for this image (${e.message}). Used a plain stretched copy instead.`,
+      };
     }
-    return { canvas: composeSimple(src, mode !== 'fit', opts), note: '', info: null };
   }
 
   // ---------------------------------------------------------------- PDF (single JPEG page, no libraries)
@@ -659,8 +579,7 @@
   async function buildPdf(canvas) {
     const blob = await canvasToBlob(canvas, 'image/jpeg', 0.95);
     const jpg = new Uint8Array(await blob.arrayBuffer());
-    const land = canvas.width >= canvas.height;
-    const W = land ? 841.89 : 595.28, H = land ? 595.28 : 841.89;   // A4 in points (follows the sheet's orientation)
+    const W = 595.28, H = 841.89;   // A4 portrait in points
     const enc = new TextEncoder();
     const parts = [], offsets = [];
     let len = 0;
@@ -684,7 +603,7 @@
   }
 
   const api = {
-    DPI, PAGE_W, PAGE_H, mm, LayoutError, DEFAULT_OPTS, normalizeOpts,
+    DPI, PAGE_W, PAGE_H, mm, LayoutError,
     toCanvas, autocrop, resize, crop,
     parseUserDate, todayISO, addDays, datesIn, readDate, lookupResult,
     splitResults, composePage, composeLarge, composeSimple,

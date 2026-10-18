@@ -1,4 +1,4 @@
-const SHELL = 'lottery-shell-v3';
+const SHELL = 'lottery-shell-v4';
 const FILES = ['./', 'index.html', 'app.js', 'lottery-core.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

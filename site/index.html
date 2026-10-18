@@ -54,40 +54,13 @@
   #linkRow.open { display: flex; }
   #linkRow input { flex: 1 1 200px; min-width: 0; text-align: left; }
 
-  .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg label { position: relative; }
-  .seg input { position: absolute; opacity: 0; inset: 0; }
-  .seg span { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 52px; padding: 4px 6px; font-size: .9rem; background: #f6f9f7; border-left: 1px solid var(--line); }
-  .seg label:first-child span { border-left: 0; }
-  .seg input:checked + span { background: var(--brand); color: #fff; font-weight: 600; }
-  .seg input:focus-visible + span { outline: 3px solid var(--mark); outline-offset: -3px; }
-
-  .seg.two { grid-template-columns: repeat(2, 1fr); }
-  .seg.six { grid-template-columns: repeat(6, 1fr); }
-  .seg.six span { min-height: 46px; font-size: 1.05rem; }
-  .field { margin-top: 14px; }
-  .field > .lbl { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: .95rem; margin-bottom: 6px; }
-  .field > .lbl output { font-variant-numeric: tabular-nums; color: var(--brand); }
-  input[type=range] { width: 100%; min-height: 36px; accent-color: var(--brand); padding: 0; background: none; border: 0; }
-  input[type=range]:disabled { opacity: .4; }
-  #saveBar { margin-top: 14px; padding: 10px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-ink); }
-  #saveBar[hidden] { display: none; }
-  #saveBar p { margin: 0 0 8px; font-size: .95rem; }
-  #saveBar .row > * { flex: 1 1 0; }
-  #settingsNote { margin-top: 10px; }
-
   #previewBox { background: #4b5651; border-radius: 8px; padding: 10px; min-height: 120px; display: grid; place-items: center; }
   #previewEmpty { color: #cdd8d3; text-align: center; padding: 28px 12px; font-size: .95rem; }
   #preview { display: none; width: 100%; height: auto; margin: 0 auto; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.45); cursor: zoom-in; }
   #previewBox.ready #preview { display: block; }
-  #preview.portrait { max-width: 440px; }
+  #preview { max-width: 440px; }
   #previewBox.ready #previewEmpty { display: none; }
 
-  #sizeInfo { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #eef3f0; font-size: .95rem; border-left: 6px solid var(--line); }
-  #sizeInfo[hidden] { display: none; }
-  #sizeInfo.small { background: var(--warn-bg); color: var(--warn-ink); border-left-color: #d9a400; }
-  #sizeInfo.good { border-left-color: #6aa84f; }
-  #sizeInfo.big { border-left-color: var(--brand); background: #e3f1ea; }
   #status { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #eef3f0; font-size: .95rem; min-height: 42px; }
   #status.warn { background: var(--warn-bg); color: var(--warn-ink); }
   #status.err { background: #fde8e6; color: var(--err); }
@@ -105,15 +78,15 @@
   #zoom header { color: #fff; display: flex; justify-content: space-between; align-items: center; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; max-width: none; margin: 0; }
   #zoom header p { margin: 0; color: #cdd8d3; }
   #zoomScroll { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y pinch-zoom; }
-  #zoomImg { display: block; width: 230vw; max-width: none; height: auto; background: #fff; margin: 0 auto; }
+  #zoomImg { display: block; width: 150vw; max-width: none; height: auto; background: #fff; margin: 0 auto; }
 
   #printArea { display: none; }
-  @page { size: A4 landscape; margin: 0; }   /* replaced by app.js to match the chosen orientation */
+  @page { size: A4 portrait; margin: 0; }
   @media print {
     html, body { margin: 0; padding: 0; background: #fff; }
     body > *:not(#printArea) { display: none !important; }
     #printArea { display: block; }
-    #printArea img { display: block; width: var(--sheet-w, 297mm); height: var(--sheet-h, 210mm); }
+    #printArea img { display: block; width: 210mm; height: 297mm; }
   }
   @media (prefers-reduced-motion: no-preference) { button, .btn { transition: background .12s; } }
 </style>
@@ -121,7 +94,7 @@
 <body>
 <header>
   <h1>Lottery Results Printer</h1>
-  <p>Copies of the day's results on one A4 sheet, ready to cut.</p>
+  <p>Two large-print copies of the day's results on one A4 sheet, ready to cut.</p>
 </header>
 
 <main>
@@ -158,97 +131,12 @@
     </details>
   </section>
 
-  <section aria-labelledby="h-layout">
-    <h2 id="h-layout">Layout</h2>
-    <div class="seg" role="radiogroup" aria-label="Layout">
-      <label><input type="radio" name="layout" value="large" checked><span>Large print<br>(easiest to read)</span></label>
-      <label><input type="radio" name="layout" value="stretch"><span>Stretch whole picture</span></label>
-      <label><input type="radio" name="layout" value="fit"><span>Original proportions</span></label>
-    </div>
-  </section>
-
-  <section aria-labelledby="h-page">
-    <h2 id="h-page">Page and text size</h2>
-
-    <div class="seg two" role="radiogroup" aria-label="Paper orientation">
-      <label><input type="radio" name="orient" value="landscape" checked><span>Landscape<br>(wide)</span></label>
-      <label><input type="radio" name="orient" value="portrait"><span>Portrait<br>(tall)</span></label>
-    </div>
-
-    <div class="field">
-      <div class="lbl"><span id="l-cols">Columns per page</span></div>
-      <div class="seg six" role="radiogroup" aria-labelledby="l-cols">
-        <label><input type="radio" name="cols" value="1"><span>1</span></label>
-        <label><input type="radio" name="cols" value="2"><span>2</span></label>
-        <label><input type="radio" name="cols" value="3" checked><span>3</span></label>
-        <label><input type="radio" name="cols" value="4"><span>4</span></label>
-        <label><input type="radio" name="cols" value="5"><span>5</span></label>
-        <label><input type="radio" name="cols" value="6"><span>6</span></label>
-      </div>
-    </div>
-
-    <div class="field">
-      <div class="lbl"><label for="textScale">Result text size</label><output id="textScaleVal" for="textScale">100%</output></div>
-      <input type="range" id="textScale" min="40" max="100" step="5" value="100">
-    </div>
-    <div class="field">
-      <div class="lbl"><label for="titleScale">Heading size</label><output id="titleScaleVal" for="titleScale">100%</output></div>
-      <input type="range" id="titleScale" min="70" max="140" step="5" value="100">
-    </div>
-    <div class="field">
-      <div class="lbl"><label for="footerScale">Bottom boxes size</label><output id="footerScaleVal" for="footerScale">100%</output></div>
-      <input type="range" id="footerScale" min="70" max="170" step="5" value="100">
-    </div>
-    <h2 style="margin-top:18px">Easier to read</h2>
-    <button class="primary" id="easyRead" style="width:100%">Easy-read: taller and bolder text</button>
-    <div class="field">
-      <div class="lbl"><label for="tall">Taller text</label><output id="tallVal" for="tall">100%</output></div>
-      <input type="range" id="tall" min="100" max="200" step="5" value="100">
-    </div>
-    <div class="field">
-      <div class="lbl"><label for="bold">Bolder text</label><output id="boldVal" for="bold">0%</output></div>
-      <input type="range" id="bold" min="0" max="100" step="5" value="0">
-    </div>
-    <p class="hint">“Taller text” stretches the writing upwards into the empty space on the page, so letters and numbers get much bigger without needing more width. 130–160% looks natural.</p>
-
-    <h2 style="margin-top:18px">Sizes inside the table</h2>
-    <div class="field" style="margin-top:6px">
-      <div class="lbl"><label for="nameScale">Names (left column)</label><output id="nameScaleVal" for="nameScale">100%</output></div>
-      <input type="range" id="nameScale" min="50" max="200" step="5" value="100">
-    </div>
-    <div class="field">
-      <div class="lbl"><label for="letterScale">Letters</label><output id="letterScaleVal" for="letterScale">100%</output></div>
-      <input type="range" id="letterScale" min="50" max="200" step="5" value="100">
-    </div>
-    <div class="field">
-      <div class="lbl"><label for="numberScale">Numbers</label><output id="numberScaleVal" for="numberScale">100%</output></div>
-      <input type="range" id="numberScale" min="50" max="200" step="5" value="100">
-    </div>
-    <p class="hint">These share the same row, so making one bigger makes the others fit around it. The line under the preview shows the real printed height in millimetres.</p>
-
-    <p class="hint">100% result text is the biggest that fits the column. For larger text use fewer columns (1 or 2 in Portrait gives the biggest). All text sliders work with “Large print” only.</p>
-
-    <div id="saveBar" hidden>
-      <p>You changed the page settings. Save them on this device for next time?</p>
-      <div class="row">
-        <button class="primary" id="saveYes">Save on this device</button>
-        <button id="saveNo">Not now</button>
-      </div>
-    </div>
-    <div class="row" style="margin-top:12px">
-      <button id="saveSettings">Save settings on this device</button>
-      <button id="resetSettings">Reset to standard</button>
-    </div>
-    <div id="settingsNote" class="hint" role="status" aria-live="polite"></div>
-  </section>
-
   <section aria-labelledby="h-prev">
     <h2 id="h-prev">Preview</h2>
     <div id="previewBox">
       <div id="previewEmpty">No image loaded yet.<br>Choose or paste the results image to see the A4 sheet here.</div>
-      <canvas id="preview" width="1188" height="840" role="img" aria-label="A4 preview of the printed sheet"></canvas>
+      <canvas id="preview" width="840" height="1188" role="img" aria-label="A4 preview of the printed sheet"></canvas>
     </div>
-    <div id="sizeInfo" role="status" aria-live="polite" hidden></div>
     <div id="status" role="status" aria-live="polite">Ready. Pick a date and the result loads by itself.</div>
     <p class="hint" id="zoomHint" hidden>Tap the preview to zoom in.</p>
   </section>
